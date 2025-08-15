@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-init
+  namespace: proj-app
+  labels:
+    app: database
+data:
+  init.sql: |
+    -- Initialize the proj application database
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE IF NOT EXISTS posts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        title VARCHAR(200) NOT NULL,
+        content TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Insert sample data
+    INSERT INTO users (username, email) VALUES 
+    ('admin', 'admin@proj.com'),
+    ('user1', 'user1@proj.com'),
+    ('user2', 'user2@proj.com')
+    ON CONFLICT (username) DO NOTHING;
+    
+    INSERT INTO posts (user_id, title, content) VALUES 
+    (1, 'Welcome to Proj', 'This is the first post in the proj application.'),
+    (2, 'Getting Started', 'Here are some tips for using the application.'),
+    (3, 'Cloud Deployment', 'This application is now running on cloud infrastructure managed by Cheetah!')
+    ON CONFLICT DO NOTHING;

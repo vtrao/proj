@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-service
+  namespace: proj-app
+  labels:
+    app: database
+spec:
+  type: ExternalName
+  externalName: YOUR_RDS_ENDPOINT  # This will be replaced with actual RDS endpoint from Cheetah
