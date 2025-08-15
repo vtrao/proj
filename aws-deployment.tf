@@ -34,6 +34,7 @@ module "cheetah" {
   region         = var.aws_region
   project_name   = "proj"
   environment    = "dev"
+  gcp_project_id = null  # Not needed for AWS deployment
   
   # Networking configuration
   vpc_cidr                = "10.0.0.0/16"
@@ -59,8 +60,8 @@ module "cheetah" {
   # Database configuration (free tier optimized)
   database_config = {
     engine            = "postgres"
-    engine_version    = "15.4"
-    instance_class    = "micro"        # Maps to db.t3.micro (free tier)
+    engine_version    = "14"
+    instance_class    = "db.t3.micro"  # AWS free tier eligible
     allocated_storage = 20             # 20GB RDS storage (free tier)
     database_name     = "ideas_db"
     master_username   = "postgres"
@@ -89,6 +90,7 @@ variable "database_password" {
 output "cluster_endpoint" {
   description = "Kubernetes cluster endpoint"
   value       = module.cheetah.cluster_endpoint
+  sensitive   = true
 }
 
 output "cluster_name" {
@@ -99,6 +101,7 @@ output "cluster_name" {
 output "database_endpoint" {
   description = "Database endpoint"
   value       = module.cheetah.database_endpoint
+  sensitive   = true
 }
 
 output "vpc_id" {
