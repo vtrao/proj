@@ -6,7 +6,7 @@ This directory contains the infrastructure configuration for the project using t
 
 ```
 infrastructure/
-├── cheetah/                    # Cheetah infrastructure platform (submodule)
+├── cheetah/                    # Cheetah infrastructure platform (git submodule)
 ├── environments/              # Environment-specific configurations
 │   ├── dev/                   # Development environment
 │   ├── staging/              # Staging environment  
@@ -21,7 +21,19 @@ infrastructure/
 
 ## Quick Start
 
-### 1. Deploy Infrastructure
+### 1. Initialize Submodules
+
+If you're cloning this repository for the first time:
+
+```bash
+# Clone with submodules
+git clone --recursive git@github.com:vtrao/proj.git
+
+# Or if already cloned, initialize submodules
+git submodule update --init --recursive
+```
+
+### 2. Deploy Infrastructure
 
 ```bash
 # Deploy development environment

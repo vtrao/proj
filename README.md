@@ -13,6 +13,16 @@ This project demonstrates a complete journey from local development to cloud pro
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+```bash
+# Clone the repository with submodules
+git clone --recursive git@github.com:vtrao/proj.git
+
+# Or if already cloned, initialize submodules
+git submodule update --init --recursive
+```
+
 ### Local Development
 
 ```bash
@@ -43,7 +53,7 @@ proj/
 ├── 🚀 backend/                     # FastAPI backend application  
 ├── 🐳 docker-compose.yml           # Local development setup
 ├── 🏗️ infrastructure/              # Cloud infrastructure configuration
-│   ├── 🐆 cheetah/                 # Cheetah infrastructure platform
+│   ├── 🐆 cheetah/                 # Cheetah infrastructure platform (git submodule)
 │   ├── ☸️ kubernetes/              # Kubernetes application manifests
 │   ├── 🌍 environments/            # Environment-specific configurations
 │   ├── 📋 deploy.sh                # Application deployment script
@@ -72,6 +82,20 @@ proj/
 - **Monitoring**: CloudWatch/Stackdriver integration
 
 ## 🔄 Development Workflow
+
+### 0. Working with Submodules
+
+```bash
+# Update Cheetah to latest version
+cd infrastructure/cheetah
+git pull origin main
+cd ../..
+git add infrastructure/cheetah
+git commit -m "update: Cheetah to latest version"
+
+# Check submodule status
+git submodule status
+```
 
 ### 1. Local Development
 ```bash
