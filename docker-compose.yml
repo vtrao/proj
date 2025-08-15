@@ -8,12 +8,20 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 5s
       retries: 5
+    networks:
+      - internal
 
   backend:
     build: ./backend
@@ -24,6 +32,13 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    networks:
+      - internal
 
   frontend:
     build: ./frontend
@@ -31,7 +46,21 @@ services:
       - backend
     ports:
       - "80:80"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - internal
+      - public
 
 volumes:
   postgres-data:
+
+networks:
+  internal:
+    internal: true
+  public:
+    external: false
 

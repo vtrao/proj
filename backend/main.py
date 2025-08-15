@@ -4,6 +4,7 @@ import psycopg2
 from typing import List
 from datetime import datetime
 import os
+import time
 
 app = FastAPI()
 
@@ -15,8 +16,20 @@ class Idea(BaseModel):
     created_at: datetime = None
 
 def get_db_connection():
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    # Add retry logic for database connection
+    max_retries = 5
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            return conn
+        except psycopg2.OperationalError as e:
+            retry_count += 1
+            if retry_count >= max_retries:
+                raise e
+            print(f"Database connection attempt {retry_count} failed. Retrying in 2 seconds...")
+            time.sleep(2)
 
 @app.get("/api/ideas", response_model=List[Idea])
 def list_ideas():
