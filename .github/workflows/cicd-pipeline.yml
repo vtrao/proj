@@ -288,7 +288,7 @@ jobs:
     
     environment:
       name: ${{ github.event.inputs.environment || 'dev' }}
-      url: http://k8s-projapp-projfree-b22239625a-854912055.us-east-1.elb.amazonaws.com
+      url: http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com
     
     steps:
     - name: 📥 Checkout Code
@@ -386,7 +386,7 @@ jobs:
         
         # Test the deployed application
         echo "🌐 Testing deployed application..."
-        FRONTEND_URL="http://k8s-projapp-projfree-b22239625a-854912055.us-east-1.elb.amazonaws.com"
+        FRONTEND_URL="http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com"
         
         # Test frontend
         curl -f "$FRONTEND_URL" -o /dev/null -s -w "Frontend: HTTP %{http_code} in %{time_total}s\n"
@@ -415,7 +415,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "- **Environment**: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Frontend URL**: http://k8s-projapp-projfree-b22239625a-854912055.us-east-1.elb.amazonaws.com" >> $GITHUB_STEP_SUMMARY
+        echo "- **Frontend URL**: http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com" >> $GITHUB_STEP_SUMMARY
         echo "- **Deployment Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Monthly Cost**: $0.00 (Free Tier)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -552,6 +552,6 @@ jobs:
         
         # Test application
         sleep 30
-        curl -f "http://k8s-projapp-projfree-b22239625a-854912055.us-east-1.elb.amazonaws.com" -o /dev/null -s -w "Rollback verification: HTTP %{http_code}\n"
+        curl -f "http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com" -o /dev/null -s -w "Rollback verification: HTTP %{http_code}\n"
         
         echo "✅ Rollback verification completed"
