@@ -1,0 +1,11 @@
+mapRoles: |
+  - rolearn: arn:aws:iam::450290746652:role/proj-dev-node-group-role
+    groups:
+    - system:bootstrappers
+    - system:nodes
+    username: system:node:{{EC2PrivateDNSName}}
+mapUsers: |
+  - userarn: arn:aws:iam::450290746652:user/service-accounts/github-actions-proj
+    groups:
+    - system:masters
+    username: github-actions-proj
