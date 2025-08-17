@@ -1,0 +1,17 @@
+# Sensitive files - never commit these
+*.tfstate
+*.tfstate.*
+kubeconfig-*
+
+# Temporary directories
+.terraform/
+
+# Plan files
+*.tfplan
+tfplan
+
+# Logs
+*.log
+
+# OS files
+.DS_Store

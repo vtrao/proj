@@ -1,0 +1,31 @@
+# Terraform sensitive files
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/kubeconfig-*
+infrastructure/terraform/.terraform/
+infrastructure/cheetah/terraform/.terraform/
+infrastructure/cheetah/terraform/*.tfstate
+infrastructure/cheetah/terraform/*.tfstate.*
+terraform.tfstate.pre-migration-backup
+
+# Environment and secrets files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+terraform.tfvars
+infrastructure/cheetah/terraform/terraform.tfvars
+
+# Deprecated backup
+terraform.tfstate.pre-migration-backup
+
+# OS files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log

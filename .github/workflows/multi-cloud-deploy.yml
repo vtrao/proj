@@ -1,0 +1,85 @@
+name: Multi-Cloud Deploy with Cheetah
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CLOUD_PROVIDER: ${{ vars.CLOUD_PROVIDER || 'aws' }}
+  
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    - name: Test with Docker Compose
+      run: |
+        docker-compose build
+        docker-compose up -d
+        sleep 30
+        # Cloud-agnostic tests
+        docker-compose down
+
+  build-and-deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    
+    # AWS deployment path
+    - name: Configure AWS credentials
+      if: env.CLOUD_PROVIDER == 'aws'
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ vars.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      if: env.CLOUD_PROVIDER == 'aws'
+      id: login-ecr-aws
+      uses: aws-actions/amazon-ecr-login@v1
+      
+    # GCP deployment path  
+    - name: Authenticate to Google Cloud
+      if: env.CLOUD_PROVIDER == 'gcp'
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        
+    - name: Configure Docker for GCR
+      if: env.CLOUD_PROVIDER == 'gcp'
+      run: gcloud auth configure-docker
+    
+    # Cloud-agnostic build and push
+    - name: Build and push images
+      run: |
+        # Load cloud-specific configuration
+        source ./scripts/load-config.sh ${{ env.CLOUD_PROVIDER }}
+        
+        # Build images
+        docker build -t $REGISTRY_URL/backend:$GITHUB_SHA ./backend
+        docker build -t $REGISTRY_URL/frontend:$GITHUB_SHA ./frontend
+        
+        # Push images
+        docker push $REGISTRY_URL/backend:$GITHUB_SHA
+        docker push $REGISTRY_URL/frontend:$GITHUB_SHA
+    
+    # Deploy infrastructure
+    - name: Deploy with Cheetah
+      run: |
+        cd infrastructure
+        ./deploy.sh ${{ github.ref_name }} ${{ env.CLOUD_PROVIDER }}
+      env:
+        TF_VAR_image_tag: ${{ github.sha }}
+        TF_VAR_cloud_provider: ${{ env.CLOUD_PROVIDER }}
