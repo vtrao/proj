@@ -36,3 +36,168 @@
     transform: rotate(360deg);
   }
 }
+
+/* Main app container with relative positioning for footer */
+.app-container {
+  min-height: 100vh;
+  position: relative;
+  padding-bottom: 60px; /* Space for footer */
+}
+
+/* Main content area */
+.main-content {
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Powered by Cheetah footer */
+.cheetah-footer {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  color: #666;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 179, 71, 0.3);
+}
+
+.cheetah-footer:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+.cheetah-logo {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+}
+
+.cheetah-footer:hover .cheetah-logo {
+  transform: scale(1.1);
+}
+
+.cheetah-text {
+  font-weight: 500;
+  background: linear-gradient(45deg, #FF8C00, #FFB347);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+  .cheetah-footer {
+    bottom: 15px;
+    right: 15px;
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  
+  .cheetah-logo {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .cheetah-footer {
+    background-color: rgba(40, 44, 52, 0.9);
+    color: #ccc;
+    border: 1px solid rgba(255, 179, 71, 0.4);
+  }
+  
+  .cheetah-footer:hover {
+    background-color: rgba(40, 44, 52, 0.95);
+  }
+}
+
+/* Idea board specific styles */
+.idea-board {
+  text-align: center;
+}
+
+.idea-form {
+  margin: 20px 0;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.idea-input {
+  padding: 10px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+  min-width: 250px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.idea-input:focus {
+  border-color: #FFB347;
+}
+
+.submit-button {
+  padding: 10px 20px;
+  background: linear-gradient(45deg, #FF8C00, #FFB347);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.submit-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+}
+
+.ideas-list {
+  list-style: none;
+  padding: 0;
+  max-width: 600px;
+  margin: 20px auto;
+}
+
+.idea-item {
+  background: white;
+  margin: 10px 0;
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: left;
+  border-left: 4px solid #FFB347;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.idea-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.idea-content {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.idea-timestamp {
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+}
