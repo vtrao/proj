@@ -58,7 +58,7 @@ function App() {
     <div className="app-container">
       <div className="main-content">
         <div className="idea-board">
-          <h1>💡 Idea Board</h1>
+          <h1>💡 Ideas board v1</h1>
           
           <form onSubmit={submitIdea} className="idea-form">
             <input

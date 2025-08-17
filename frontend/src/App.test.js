@@ -17,7 +17,7 @@ describe('App Component', () => {
     });
 
     render(<App />);
-    const titleElement = screen.getByText(/💡 Idea Board/i);
+    const titleElement = screen.getByText(/💡 Ideas board v1/i);
     expect(titleElement).toBeInTheDocument();
   });
 
