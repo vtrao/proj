@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ideas_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}  # Use environment variable with fallback
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
       - "5433:5432"
     deploy:
@@ -23,10 +23,14 @@ services:
     networks:
       - internal
 
-  backend:
+  backend-service:
     build: ./backend
     environment:
-      DATABASE_URL: ${DATABASE_URL:-"dbname=ideas_db user=postgres password=${DB_PASSWORD:-postgres} host=db"}
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ideas_db
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       db:
         condition: service_healthy
@@ -43,9 +47,9 @@ services:
   frontend:
     build: ./frontend
     depends_on:
-      - backend
+      - backend-service
     ports:
-      - "80:80"
+      - "80:8080"
     deploy:
       resources:
         limits:
@@ -63,4 +67,3 @@ networks:
     internal: true
   public:
     external: false
-
