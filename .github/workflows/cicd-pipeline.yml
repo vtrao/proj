@@ -23,8 +23,8 @@ on:
         type: boolean
 
 env:
-  # Docker Hub Registry (FREE tier with public repositories)
-  REGISTRY: docker.io
+  # GitHub Container Registry (FREE for public repositories)
+  REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   
   # AWS Region (Free Tier)
@@ -32,6 +32,11 @@ env:
   
   # Kubernetes Namespace
   K8S_NAMESPACE: proj-app
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════
@@ -223,9 +228,10 @@ jobs:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
     
-    - name: 🔐 Log in to Docker Hub
+    - name: 🔐 Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
+        registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
