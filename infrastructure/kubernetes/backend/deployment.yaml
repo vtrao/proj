@@ -20,28 +20,26 @@ spec:
     spec:
       containers:
       - name: backend
-        image: proj/backend:latest
+        image: 450290746652.dkr.ecr.us-east-1.amazonaws.com/proj/backend:latest
         ports:
         - containerPort: 8000
         env:
-        - name: DATABASE_URL
-          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):5432/$(DB_NAME)"
         - name: DB_HOST
           value: "database-service"
         - name: DB_USER
           valueFrom:
             secretKeyRef:
-              name: database-credentials
+              name: database-credentials-fallback
               key: username
         - name: DB_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: database-credentials
+              name: database-credentials-fallback
               key: password
         - name: DB_NAME
           valueFrom:
             secretKeyRef:
-              name: database-credentials
+              name: database-credentials-fallback
               key: database
         - name: ENVIRONMENT
           value: "development"

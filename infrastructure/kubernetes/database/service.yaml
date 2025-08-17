@@ -7,4 +7,4 @@ metadata:
     app: database
 spec:
   type: ExternalName
-  externalName: YOUR_RDS_ENDPOINT  # This will be replaced with actual RDS endpoint from Cheetah
+  externalName: proj-dev-db.cuzwa0qw6qdo.us-east-1.rds.amazonaws.com

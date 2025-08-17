@@ -1,0 +1,76 @@
+# Cloud-agnostic monitoring interface
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+  namespace: cheetah-system
+data:
+  # Cloud-neutral monitoring configuration
+  metrics.yaml: |
+    provider: $CLOUD_PROVIDER
+    endpoints:
+      metrics: "/metrics"
+      health: "/health"
+      logs: "/logs"
+    
+    # Prometheus configuration (cloud-neutral)
+    prometheus:
+      enabled: true
+      retention: "30d"
+      scrape_interval: "15s"
+    
+    # Grafana dashboards (cloud-neutral)
+    grafana:
+      enabled: true
+      dashboards:
+        - kubernetes-cluster
+        - application-metrics
+        - database-performance
+        
+    # Cloud-specific integrations
+    integrations:
+      aws:
+        cloudwatch_enabled: true
+        xray_enabled: true
+      gcp:
+        stackdriver_enabled: true
+        trace_enabled: true
+      azure:
+        monitor_enabled: true
+        app_insights_enabled: true
+
+---
+# OpenTelemetry Collector (cloud-neutral)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: cheetah-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector:latest
+        ports:
+        - containerPort: 4317  # OTLP gRPC
+        - containerPort: 4318  # OTLP HTTP
+        - containerPort: 8889  # Prometheus metrics
+        env:
+        - name: CLOUD_PROVIDER
+          value: "$CLOUD_PROVIDER"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/otel/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config
+        configMap:
+          name: otel-collector-config

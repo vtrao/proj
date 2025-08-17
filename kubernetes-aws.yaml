@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proj-app
+  labels:
+    app: proj
+    environment: prod
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: proj-secrets
+  namespace: proj-app
+type: Opaque
+stringData:
+  database-url: "postgresql://postgres:proj_secure_password_2025@proj-prod-database.cluster-ro.amazonaws.com:5432/ideas_db"
+  database-password: "proj_secure_password_2025"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proj-config
+  namespace: proj-app
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proj-backend
+  namespace: proj-app
+  labels:
+    app: proj-backend
+    component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proj-backend
+  template:
+    metadata:
+      labels:
+        app: proj-backend
+        component: api
+    spec:
+      containers:
+      - name: backend
+        image: proj-backend:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: proj-secrets
+              key: database-url
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: proj-config
+              key: ENVIRONMENT
+        livenessProbe:
+          httpGet:
+            path: /api/ideas
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/ideas
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proj-backend-service
+  namespace: proj-app
+  labels:
+    app: proj-backend
+spec:
+  selector:
+    app: proj-backend
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proj-frontend
+  namespace: proj-app
+  labels:
+    app: proj-frontend
+    component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proj-frontend
+  template:
+    metadata:
+      labels:
+        app: proj-frontend
+        component: web
+    spec:
+      containers:
+      - name: frontend
+        image: proj-frontend:latest
+        ports:
+        - containerPort: 80
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proj-frontend-service
+  namespace: proj-app
+  labels:
+    app: proj-frontend
+spec:
+  selector:
+    app: proj-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: proj-ingress
+  namespace: proj-app
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: proj-backend-service
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: proj-frontend-service
+            port:
+              number: 80

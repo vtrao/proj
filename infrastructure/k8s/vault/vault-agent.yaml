@@ -1,0 +1,98 @@
+# Vault Agent for Kubernetes Integration
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vault-agent
+  namespace: proj-app
+  labels:
+    app: vault-agent
+spec:
+  selector:
+    matchLabels:
+      app: vault-agent
+  template:
+    metadata:
+      labels:
+        app: vault-agent
+    spec:
+      serviceAccountName: vault-auth
+      containers:
+      - name: vault-agent
+        image: hashicorp/vault:latest
+        args:
+        - vault
+        - agent
+        - -config=/vault/config/agent.hcl
+        env:
+        - name: VAULT_ADDR
+          value: "https://vault.example.com:8200"
+        volumeMounts:
+        - name: vault-config
+          mountPath: /vault/config
+        - name: vault-secrets
+          mountPath: /vault/secrets
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+      volumes:
+      - name: vault-config
+        configMap:
+          name: vault-agent-config
+      - name: vault-secrets
+        emptyDir:
+          medium: Memory
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-config
+  namespace: proj-app
+data:
+  agent.hcl: |
+    pid_file = "/vault/secrets/vault-agent.pid"
+    
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes-dev"
+        config = {
+          role = "proj-dev-app"
+        }
+      }
+      
+      sink "file" {
+        config = {
+          path = "/vault/secrets/vault-token"
+        }
+      }
+    }
+    
+    template {
+      source = "/vault/config/database.tpl"
+      destination = "/vault/secrets/database-config"
+      perms = 0600
+    }
+    
+    vault {
+      address = "https://vault.example.com:8200"
+    }
+  
+  database.tpl: |
+    {{- with secret "database/creds/proj-dev-app" }}
+    username={{ .Data.username }}
+    password={{ .Data.password }}
+    {{- end }}
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-auth
+  namespace: proj-app
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "proj-dev-app"

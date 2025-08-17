@@ -8,7 +8,12 @@ import time
 
 app = FastAPI()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "dbname=ideas_db user=postgres password=postgres host=db")
+# Build DATABASE_URL from individual components
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+DB_NAME = os.getenv("DB_NAME", "appdb")
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:5432/{DB_NAME}"
 
 class Idea(BaseModel):
     id: int = None
@@ -30,6 +35,10 @@ def get_db_connection():
                 raise e
             print(f"Database connection attempt {retry_count} failed. Retrying in 2 seconds...")
             time.sleep(2)
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 @app.get("/api/ideas", response_model=List[Idea])
 def list_ideas():

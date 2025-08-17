@@ -20,9 +20,9 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: proj/frontend:latest
+        image: 450290746652.dkr.ecr.us-east-1.amazonaws.com/proj/frontend:latest
         ports:
-        - containerPort: 80
+        - containerPort: 8080
         env:
         - name: REACT_APP_API_URL
           value: "/api"
@@ -31,13 +31,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 80
+            port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /
-            port: 80
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
         resources:
@@ -60,6 +60,6 @@ spec:
     app: frontend
   ports:
   - port: 80
-    targetPort: 80
+    targetPort: 8080
     protocol: TCP
   type: ClusterIP
