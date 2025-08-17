@@ -354,7 +354,7 @@ jobs:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
+        submodules: false
     
     - name: ⚙️ Configure AWS Credentials  
       uses: aws-actions/configure-aws-credentials@v4
@@ -464,7 +464,7 @@ jobs:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
+        submodules: false
     
     - name: 🔷 Azure Login
       uses: azure/login@v1
@@ -619,7 +619,7 @@ jobs:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
+        submodules: false
     
     - name: 🚨 AWS Rollback
       if: needs.deploy-aws.result == 'failure' && needs.deployment-orchestrator.outputs.should_deploy_aws == 'true'
