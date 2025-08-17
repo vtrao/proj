@@ -5,6 +5,7 @@ from typing import List
 from datetime import datetime
 import os
 import time
+import requests
 
 app = FastAPI()
 
@@ -19,6 +20,60 @@ class Idea(BaseModel):
     id: int = None
     content: str
     created_at: datetime = None
+
+def detect_cloud_provider():
+    """
+    Detect the cloud provider by checking metadata services and environment variables.
+    Returns: str - 'aws', 'azure', or 'unknown'
+    """
+    # Check environment variable first (can be set in deployment)
+    cloud_provider = os.getenv("CLOUD_PROVIDER", "").lower()
+    if cloud_provider in ["aws", "azure", "gcp"]:
+        return cloud_provider
+    
+    try:
+        # Try AWS metadata service (with timeout)
+        response = requests.get(
+            "http://169.254.169.254/latest/meta-data/instance-id", 
+            timeout=2,
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
+        )
+        if response.status_code == 200:
+            return "aws"
+    except:
+        pass
+    
+    try:
+        # Try Azure metadata service (with timeout)
+        response = requests.get(
+            "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+            timeout=2,
+            headers={"Metadata": "true"}
+        )
+        if response.status_code == 200:
+            return "azure"
+    except:
+        pass
+    
+    try:
+        # Try GCP metadata service (with timeout)
+        response = requests.get(
+            "http://metadata.google.internal/computeMetadata/v1/instance/id",
+            timeout=2,
+            headers={"Metadata-Flavor": "Google"}
+        )
+        if response.status_code == 200:
+            return "gcp"
+    except:
+        pass
+    
+    # Check for Kubernetes environment variables that might indicate cloud provider
+    if os.getenv("AWS_REGION"):
+        return "aws"
+    elif os.getenv("AZURE_RESOURCE_GROUP"):
+        return "azure"
+    
+    return "unknown"
 
 def get_db_connection():
     # Add retry logic for database connection
@@ -74,6 +129,20 @@ def root():
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/health"
+    }
+
+@app.get("/api/cloud-info")
+def get_cloud_info():
+    """
+    Get cloud provider information and deployment details.
+    """
+    cloud_provider = detect_cloud_provider()
+    
+    return {
+        "cloud_provider": cloud_provider,
+        "region": os.getenv("AWS_REGION") or os.getenv("AZURE_REGION") or "unknown",
+        "environment": os.getenv("ENVIRONMENT", "dev"),
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 @app.get("/api/ideas", response_model=List[Idea])

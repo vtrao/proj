@@ -44,6 +44,92 @@
   padding-bottom: 60px; /* Space for footer */
 }
 
+/* Cloud Provider Indicator */
+.cloud-provider-indicator {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 25px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  color: #444;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-weight: 500;
+  z-index: 1000;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.cloud-provider-indicator:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  background-color: rgba(255, 255, 255, 1);
+}
+
+.cloud-icon {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.cloud-text {
+  font-weight: 600;
+  color: #333;
+}
+
+.cloud-region {
+  font-size: 11px;
+  color: #666;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* Responsive design for cloud indicator */
+@media (max-width: 768px) {
+  .cloud-provider-indicator {
+    top: 10px;
+    right: 10px;
+    font-size: 12px;
+    padding: 6px 12px;
+    gap: 6px;
+  }
+  
+  .cloud-icon {
+    font-size: 14px;
+  }
+  
+  .cloud-region {
+    display: none; /* Hide region on mobile for space */
+  }
+}
+
+/* Dark mode support for cloud indicator */
+@media (prefers-color-scheme: dark) {
+  .cloud-provider-indicator {
+    background-color: rgba(40, 44, 52, 0.95);
+    color: #e0e0e0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .cloud-provider-indicator:hover {
+    background-color: rgba(40, 44, 52, 1);
+  }
+  
+  .cloud-text {
+    color: #f0f0f0;
+  }
+  
+  .cloud-region {
+    color: #ccc;
+  }
+}
+
 /* Main content area */
 .main-content {
   padding: 20px;

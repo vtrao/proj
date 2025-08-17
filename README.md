@@ -1,15 +1,16 @@
 # Proj Application
 
-A full-stack web application with Docker containerization and cloud-native deployment using the Cheetah infrastructure platform.
+A full-stack web application with multi-cloud deployment capabilities, featuring automated CI/CD pipelines and cloud-native infrastructure management through the Cheetah platform.
 
-## 🏗️ Architecture
+## � Multi-Cloud Architecture
 
-This project demonstrates a complete journey from local development to cloud production:
+This project demonstrates enterprise-grade multi-cloud deployment:
 
 - **Local Development**: Docker Compose for rapid development and testing
-- **Cloud Infrastructure**: Cheetah platform for cloud-agnostic infrastructure deployment
-- **Container Orchestration**: Kubernetes for production-grade container management
-- **CI/CD**: GitHub Actions for automated testing and deployment
+- **Cloud Infrastructure**: Cheetah platform for cloud-agnostic infrastructure (AWS + Azure)
+- **Container Orchestration**: Kubernetes clusters (EKS + AKS) for production-grade container management
+- **CI/CD**: GitHub Actions with multi-cloud deployment strategies
+- **Cost Optimization**: Free tier utilization and intelligent resource management
 
 ## 🚀 Quick Start
 
@@ -34,16 +35,38 @@ docker-compose build
 docker-compose run backend python -m pytest
 ```
 
-### Cloud Deployment
+### Multi-Cloud Deployment
 
 ```bash
-# Deploy to cloud using Cheetah
+# Deploy to AWS
 cd infrastructure
 ./deploy.sh dev aws
 
-# Test the integration
-./test-integration.sh
+# Deploy to Azure  
+./deploy.sh dev azure
+
+# Deploy to both clouds
+./deploy.sh dev both
 ```
+
+### CI/CD Deployment
+
+The project includes automated multi-cloud CI/CD with flexible deployment strategies:
+
+- **Automatic**: Push to main deploys to both AWS and Azure
+- **Manual**: Use GitHub Actions workflow dispatch to select specific clouds
+- **Strategies**: `both`, `aws-only`, `azure-only`
+
+## 🔗 Live Applications
+
+### Production URLs
+- **AWS**: http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com
+- **Azure**: http://4.156.246.77
+
+### Cost Comparison
+- **AWS**: ~$203-270/month (Production-ready with managed services)
+- **Azure**: ~$11-42/month (Free tier optimized)
+- **Total**: ~$214-312/month for full multi-cloud redundancy
 
 ## 📁 Project Structure
 

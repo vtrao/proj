@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proj-frontend
+  labels:
+    app: proj-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proj-frontend
+  template:
+    metadata:
+      labels:
+        app: proj-frontend
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: frontend
+        image: ghcr.io/vtrao/proj-frontend:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: REACT_APP_BACKEND_URL
+          value: "http://proj-backend-service:5000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proj-frontend-service
+spec:
+  selector:
+    app: proj-frontend
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proj-backend
+  labels:
+    app: proj-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proj-backend
+  template:
+    metadata:
+      labels:
+        app: proj-backend
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: backend
+        image: ghcr.io/vtrao/proj-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "postgres"
+        - name: DB_NAME
+          value: "appdb"
+        - name: CLOUD_PROVIDER
+          value: "azure"
+        - name: AZURE_REGION
+          value: "eastus"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proj-backend-service
+spec:
+  selector:
+    app: proj-backend
+  ports:
+  - port: 5000
+    targetPort: 8000
+  type: ClusterIP
+---
+# Alias service to match nginx.conf expectations (backend-service:8000/api/)
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: proj-backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP

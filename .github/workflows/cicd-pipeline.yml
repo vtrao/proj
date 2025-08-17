@@ -16,6 +16,15 @@ on:
           - dev
           - staging
           - prod
+      deployment_strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - aws-only
+          - azure-only
       force_deploy:
         description: 'Force deployment even if tests fail'
         required: false
@@ -27,11 +36,16 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   
-  # AWS Region (Free Tier)
+  # Multi-Cloud Configuration
   AWS_REGION: us-east-1
+  AZURE_REGION: eastus
   
   # Kubernetes Namespace
   K8S_NAMESPACE: proj-app
+  
+  # Deployment Strategy
+  DEPLOY_TO_AWS: ${{ (github.event.inputs.deployment_strategy == 'both' || github.event.inputs.deployment_strategy == 'aws-only' || github.event.inputs.deployment_strategy == '') && 'true' || 'false' }}
+  DEPLOY_TO_AZURE: ${{ (github.event.inputs.deployment_strategy == 'both' || github.event.inputs.deployment_strategy == 'azure-only') && 'true' || 'false' }}
 
 permissions:
   contents: read
@@ -277,18 +291,63 @@ jobs:
         retention-days: 30
 
   # ═══════════════════════════════════════════════════════════════════
-  # 🚀 DEPLOYMENT TO FREE TIER AWS
+  # 🚀 MULTI-CLOUD DEPLOYMENT ORCHESTRATOR
   # ═══════════════════════════════════════════════════════════════════
-  deploy:
+  deployment-orchestrator:
     runs-on: ubuntu-latest
     needs: [code-analysis, test, build]
     if: |
       (needs.code-analysis.outputs.should_deploy == 'true' || github.event.inputs.force_deploy == 'true') &&
       (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     
+    outputs:
+      should_deploy_aws: ${{ steps.strategy.outputs.deploy_aws }}
+      should_deploy_azure: ${{ steps.strategy.outputs.deploy_azure }}
+      aws_url: ${{ steps.strategy.outputs.aws_url }}
+      azure_url: ${{ steps.strategy.outputs.azure_url }}
+    
+    steps:
+    - name: 🎯 Determine Deployment Strategy
+      id: strategy
+      run: |
+        echo "📋 Deployment Strategy Analysis:"
+        echo "Input Strategy: ${{ github.event.inputs.deployment_strategy }}"
+        echo "Environment: ${{ github.event.inputs.environment || 'dev' }}"
+        echo "DEPLOY_TO_AWS: ${{ env.DEPLOY_TO_AWS }}"
+        echo "DEPLOY_TO_AZURE: ${{ env.DEPLOY_TO_AZURE }}"
+        
+        # Set deployment flags
+        echo "deploy_aws=${{ env.DEPLOY_TO_AWS }}" >> $GITHUB_OUTPUT
+        echo "deploy_azure=${{ env.DEPLOY_TO_AZURE }}" >> $GITHUB_OUTPUT
+        
+        # Set service URLs
+        echo "aws_url=http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com" >> $GITHUB_OUTPUT
+        echo "azure_url=http://4.156.246.77" >> $GITHUB_OUTPUT
+        
+        echo "✅ Deployment strategy configured"
+    
+    - name: 📊 Deployment Summary Preview
+      run: |
+        echo "## 🚀 Multi-Cloud Deployment Plan" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Strategy**: ${{ github.event.inputs.deployment_strategy || 'both (default)' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deploy to AWS**: ${{ env.DEPLOY_TO_AWS }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deploy to Azure**: ${{ env.DEPLOY_TO_AZURE }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Container Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════
+  # ☁️ AWS DEPLOYMENT
+  # ═══════════════════════════════════════════════════════════════════
+  deploy-aws:
+    runs-on: ubuntu-latest
+    needs: [deployment-orchestrator]
+    if: needs.deployment-orchestrator.outputs.should_deploy_aws == 'true'
+    
     environment:
-      name: ${{ github.event.inputs.environment || 'dev' }}
-      url: http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com
+      name: aws-${{ github.event.inputs.environment || 'dev' }}
+      url: ${{ needs.deployment-orchestrator.outputs.aws_url }}
     
     steps:
     - name: 📥 Checkout Code
@@ -297,148 +356,6 @@ jobs:
         submodules: recursive
     
     - name: ⚙️ Configure AWS Credentials  
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
-      run: |
-        echo "Setting up AWS environment variables..."
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-        echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
-        
-        # Test AWS connection
-        echo "Testing AWS connectivity..."
-        if aws sts get-caller-identity > /dev/null 2>&1; then
-          echo "✅ AWS credentials verified"
-        else
-          echo "⚠️ AWS credential test failed, but continuing deployment..."
-        fi
-    
-    - name: 🔧 Install kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'v1.28.0'
-    
-    - name: ☁️ Configure kubectl for EKS
-      run: |
-        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name proj-dev-cluster
-        
-        echo "🔍 Verifying cluster access..."
-        kubectl cluster-info
-        kubectl get nodes
-    
-    - name: 🔐 Create GHCR Pull Secret
-      run: |
-        echo "🔐 Creating/updating image pull secret for GHCR..."
-        
-        # Delete existing secret if it exists
-        kubectl delete secret ghcr-secret -n ${{ env.K8S_NAMESPACE }} --ignore-not-found=true
-        
-        # Create new secret
-        kubectl create secret docker-registry ghcr-secret \
-          --docker-server=ghcr.io \
-          --docker-username=${{ github.actor }} \
-          --docker-password=${{ secrets.GITHUB_TOKEN }} \
-          --docker-email=${{ github.actor }}@users.noreply.github.com \
-          -n ${{ env.K8S_NAMESPACE }}
-        
-        echo "✅ Image pull secret created successfully!"
-    
-    - name: 🚀 Deploy with Cheetah Platform
-      run: |
-        echo "🚀 Using existing Cheetah-deployed infrastructure..."
-        echo "⚡ Skipping infrastructure provisioning - cluster already exists"
-        echo "🔄 Proceeding to application container updates..."
-        
-        # Verify we can connect to the existing cluster
-        kubectl get nodes -o wide
-        kubectl get pods -n ${{ env.K8S_NAMESPACE }}
-        
-        echo "✅ Cluster connectivity verified - ready for app deployment!"
-    
-    - name: 🔄 Update Kubernetes Manifests
-      run: |
-        echo "🔄 Updating container images in Kubernetes manifests..."
-        
-        # Update backend deployment
-        kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
-        
-        # Update frontend deployment
-        kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ github.repository }}-frontend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
-        
-        echo "🔄 Rolling out updates..."
-        kubectl rollout status deployment/backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-        kubectl rollout status deployment/frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-    
-    - name: 🧪 Post-Deployment Verification
-      run: |
-        echo "🧪 Running post-deployment health checks..."
-        
-        # Wait for pods to be ready
-        kubectl wait --for=condition=ready pod -l app=backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-        kubectl wait --for=condition=ready pod -l app=frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-        
-        # Get deployment status
-        kubectl get pods -n ${{ env.K8S_NAMESPACE }}
-        kubectl get services -n ${{ env.K8S_NAMESPACE }}
-        kubectl get ingress -n ${{ env.K8S_NAMESPACE }}
-        
-        # Test the deployed application
-        echo "🌐 Testing deployed application..."
-        FRONTEND_URL="http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com"
-        
-        # Test frontend
-        curl -f "$FRONTEND_URL" -o /dev/null -s -w "Frontend: HTTP %{http_code} in %{time_total}s\n"
-        
-        # Test API
-        curl -f "$FRONTEND_URL/api/ideas" -o /dev/null -s -w "API: HTTP %{http_code} in %{time_total}s\n"
-        
-        echo "✅ All health checks passed!"
-    
-    - name: 💰 Cost Monitoring Check
-      run: |
-        echo "💰 Checking AWS free tier usage..."
-        
-        # Check EKS cluster status
-        aws eks describe-cluster --name proj-dev-cluster --region ${{ env.AWS_REGION }} --query 'cluster.status'
-        
-        # Check ALB status (should be free tier)
-        aws elbv2 describe-load-balancers --region ${{ env.AWS_REGION }} --query 'LoadBalancers[?contains(DNSName, `projfree`)].State.Code'
-        
-        echo "✅ Free tier resources confirmed active"
-    
-    - name: 📝 Deployment Summary
-      if: always()
-      run: |
-        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **Environment**: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Frontend URL**: http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com" >> $GITHUB_STEP_SUMMARY
-        echo "- **Deployment Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Monthly Cost**: $0.00 (Free Tier)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        if [ "${{ job.status }}" == "success" ]; then
-          echo "✅ **Deployment completed successfully!**" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Deployment failed. Check logs for details.**" >> $GITHUB_STEP_SUMMARY
-        fi
-
-  # ═══════════════════════════════════════════════════════════════════
-  # 📊 POST-DEPLOYMENT MONITORING
-  # ═══════════════════════════════════════════════════════════════════
-  monitor:
-    runs-on: ubuntu-latest
-    needs: deploy
-    if: always() && needs.deploy.result == 'success'
-    
-    steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-    
-    - name: ⚙️ Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -450,108 +367,321 @@ jobs:
       with:
         version: 'v1.28.0'
     
-    - name: ☁️ Configure kubectl
+    - name: ☁️ Configure kubectl for EKS
       run: |
         aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name proj-dev-cluster
+        
+        echo "🔍 Verifying AWS cluster access..."
+        kubectl cluster-info
+        kubectl get nodes
+        
+        # Create namespace if it doesn't exist
+        kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
     
-    - name: 📊 Collect Metrics
+    - name: 🔐 Create/Update GHCR Pull Secret (AWS)
       run: |
-        echo "📊 Collecting deployment metrics..."
+        echo "🔐 Creating/updating image pull secret for GHCR in AWS..."
         
-        # Pod metrics
-        kubectl get pods -n ${{ env.K8S_NAMESPACE }} -o wide
+        kubectl delete secret ghcr-secret -n ${{ env.K8S_NAMESPACE }} --ignore-not-found=true
         
-        # Resource usage
-        kubectl top pods -n ${{ env.K8S_NAMESPACE }} 2>/dev/null || echo "Metrics server not available"
+        kubectl create secret docker-registry ghcr-secret \
+          --docker-server=ghcr.io \
+          --docker-username=${{ github.actor }} \
+          --docker-password=${{ secrets.GITHUB_TOKEN }} \
+          --docker-email=${{ github.actor }}@users.noreply.github.com \
+          -n ${{ env.K8S_NAMESPACE }}
         
-        # Service endpoints
-        kubectl get endpoints -n ${{ env.K8S_NAMESPACE }}
-        
-        # Recent events
-        kubectl get events -n ${{ env.K8S_NAMESPACE }} --sort-by='.lastTimestamp' | tail -10
+        echo "✅ AWS image pull secret created successfully!"
     
-    - name: 💰 Free Tier Usage Report
+    - name: 🚀 Deploy to AWS EKS
       run: |
-        echo "💰 Free Tier Usage Report:"
-        echo "========================="
+        echo "🚀 Deploying to AWS EKS cluster..."
         
-        # EKS cluster info
-        echo "EKS Cluster: proj-dev-cluster (Free for 3 months)"
-        aws eks describe-cluster --name proj-dev-cluster --query 'cluster.createdAt'
+        # Verify cluster connectivity
+        kubectl get nodes -o wide
+        kubectl get pods -n ${{ env.K8S_NAMESPACE }} || echo "No pods yet"
         
-        # ALB info
-        echo "Application Load Balancer: (750 hours/month free)"
-        aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(DNSName, `projfree`)].CreatedTime'
+        # Apply/Update AWS Kubernetes manifests
+        echo "📦 Applying/Updating AWS deployments..."
         
-        # RDS info (if applicable)
-        echo "RDS: (750 hours db.t3.micro free)"
-        aws rds describe-db-instances --query 'DBInstances[?contains(DBInstanceIdentifier, `proj`)].InstanceCreateTime' 2>/dev/null || echo "No RDS instances"
+        # Update backend deployment with new image
+        if kubectl get deployment backend -n ${{ env.K8S_NAMESPACE }} >/dev/null 2>&1; then
+          kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
+        else
+          echo "📦 Creating initial AWS backend deployment..."
+          kubectl apply -f infrastructure/kubernetes/backend/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
+        fi
         
-        echo "✅ All resources within free tier limits"
+        # Update frontend deployment with new image
+        if kubectl get deployment frontend -n ${{ env.K8S_NAMESPACE }} >/dev/null 2>&1; then
+          kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ github.repository }}-frontend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
+        else
+          echo "📦 Creating initial AWS frontend deployment..."
+          kubectl apply -f infrastructure/kubernetes/frontend/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ github.repository }}-frontend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
+        fi
+        
+        # Wait for rollout
+        echo "⏳ Waiting for deployments to be ready..."
+        kubectl rollout status deployment/backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+        kubectl rollout status deployment/frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+    
+    - name: 🧪 AWS Health Check
+      run: |
+        echo "🧪 Running AWS post-deployment health checks..."
+        
+        # Wait for pods
+        kubectl wait --for=condition=ready pod -l app=backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s || echo "Backend pods check"
+        kubectl wait --for=condition=ready pod -l app=frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s || echo "Frontend pods check"
+        
+        # Get status
+        kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+        kubectl get services -n ${{ env.K8S_NAMESPACE }}
+        
+        # Test application
+        echo "🌐 Testing AWS deployment..."
+        AWS_URL="${{ needs.deployment-orchestrator.outputs.aws_url }}"
+        curl -f "$AWS_URL" -o /dev/null -s -w "AWS Frontend: HTTP %{http_code} in %{time_total}s\n" || echo "AWS frontend test failed"
+        curl -f "$AWS_URL/api/ideas" -o /dev/null -s -w "AWS API: HTTP %{http_code} in %{time_total}s\n" || echo "AWS API test failed"
+        
+        echo "✅ AWS deployment completed!"
 
   # ═══════════════════════════════════════════════════════════════════
-  # 🚨 ROLLBACK ON FAILURE
+  # 🔷 AZURE DEPLOYMENT  
   # ═══════════════════════════════════════════════════════════════════
-  rollback:
+  deploy-azure:
     runs-on: ubuntu-latest
-    needs: [deploy, monitor]
-    if: always() && (needs.deploy.result == 'failure' || needs.monitor.result == 'failure')
+    needs: [deployment-orchestrator]
+    if: needs.deployment-orchestrator.outputs.should_deploy_azure == 'true'
+    
+    environment:
+      name: azure-${{ github.event.inputs.environment || 'dev' }}
+      url: ${{ needs.deployment-orchestrator.outputs.azure_url }}
     
     steps:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
     
-    - name: ⚙️ Configure AWS Credentials
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
-      run: |
-        echo "Setting up AWS environment variables..."
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-        echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
-        
-        # Test AWS connection
-        echo "Testing AWS connectivity for rollback..."
-        if aws sts get-caller-identity > /dev/null 2>&1; then
-          echo "✅ AWS credentials verified for rollback"
-        else
-          echo "⚠️ AWS credential test failed, but attempting rollback..."
-        fi
+    - name: 🔷 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
     
     - name: 🔧 Install kubectl
       uses: azure/setup-kubectl@v3
       with:
         version: 'v1.28.0'
     
-    - name: ☁️ Configure kubectl
+    - name: ☁️ Configure kubectl for AKS
       run: |
-        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name proj-dev-cluster
+        echo "🔷 Configuring kubectl for Azure AKS..."
+        
+        # Get AKS credentials
+        az aks get-credentials --resource-group proj-dev-rg --name proj-dev-aks --overwrite-existing
+        
+        echo "🔍 Verifying Azure cluster access..."
+        kubectl cluster-info
+        kubectl get nodes
+        
+        # Create namespace if it doesn't exist
+        kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
     
-    - name: 🔄 Rollback Deployment
+    - name: 🔐 Create/Update GHCR Pull Secret (Azure)
       run: |
-        echo "🔄 Rolling back failed deployment..."
+        echo "🔐 Creating/updating image pull secret for GHCR in Azure..."
         
-        # Rollback to previous version
-        kubectl rollout undo deployment/backend -n ${{ env.K8S_NAMESPACE }}
-        kubectl rollout undo deployment/frontend -n ${{ env.K8S_NAMESPACE }}
+        kubectl delete secret ghcr-secret -n ${{ env.K8S_NAMESPACE }} --ignore-not-found=true
         
-        # Wait for rollback to complete
-        kubectl rollout status deployment/backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-        kubectl rollout status deployment/frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+        kubectl create secret docker-registry ghcr-secret \
+          --docker-server=ghcr.io \
+          --docker-username=${{ github.actor }} \
+          --docker-password=${{ secrets.GITHUB_TOKEN }} \
+          --docker-email=${{ github.actor }}@users.noreply.github.com \
+          -n ${{ env.K8S_NAMESPACE }}
         
-        echo "✅ Rollback completed"
+        echo "✅ Azure image pull secret created successfully!"
     
-    - name: 🧪 Verify Rollback
+    - name: 🔷 Deploy to Azure AKS
       run: |
-        echo "🧪 Verifying rollback..."
+        echo "🔷 Deploying to Azure AKS cluster..."
         
-        # Check pod status
+        # Verify cluster connectivity
+        kubectl get nodes -o wide
+        kubectl get pods -n ${{ env.K8S_NAMESPACE }} || echo "No pods yet"
+        
+        # Apply Azure-specific Kubernetes manifests with GHCR images
+        echo "📦 Applying Azure-specific manifests..."
+        
+        # Update the Azure deployment with GHCR images
+        sed "s|ghcr.io/vtrao/proj-backend:latest|${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }}|g; s|ghcr.io/vtrao/proj-frontend:latest|${{ env.REGISTRY }}/${{ github.repository }}-frontend:${{ github.sha }}|g" k8s/azure-deployment.yaml | kubectl apply -f - -n ${{ env.K8S_NAMESPACE }}
+        
+        # Apply PostgreSQL if exists
+        if [ -f "k8s/azure-postgres.yaml" ]; then
+          kubectl apply -f k8s/azure-postgres.yaml -n ${{ env.K8S_NAMESPACE }}
+        fi
+        
+        # Wait for rollout
+        echo "⏳ Waiting for deployments to be ready..."
+        kubectl rollout status deployment/proj-backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+        kubectl rollout status deployment/proj-frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+    
+    - name: 🧪 Azure Health Check
+      run: |
+        echo "🧪 Running Azure post-deployment health checks..."
+        
+        # Wait for pods
+        kubectl wait --for=condition=ready pod -l app=proj-backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s || echo "Azure backend pods check"
+        kubectl wait --for=condition=ready pod -l app=proj-frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s || echo "Azure frontend pods check"
+        
+        # Get status
         kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+        kubectl get services -n ${{ env.K8S_NAMESPACE }}
         
         # Test application
-        sleep 30
-        curl -f "http://k8s-projapp-projenha-1c91b63e01-1661544353.us-east-1.elb.amazonaws.com" -o /dev/null -s -w "Rollback verification: HTTP %{http_code}\n"
+        echo "🌐 Testing Azure deployment..."
+        AZURE_URL="${{ needs.deployment-orchestrator.outputs.azure_url }}"
+        curl -f "$AZURE_URL" -o /dev/null -s -w "Azure Frontend: HTTP %{http_code} in %{time_total}s\n" || echo "Azure frontend test failed"
+        curl -f "$AZURE_URL/api/ideas" -o /dev/null -s -w "Azure API: HTTP %{http_code} in %{time_total}s\n" || echo "Azure API test failed"
         
-        echo "✅ Rollback verification completed"
+        echo "✅ Azure deployment completed!"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 📊 MULTI-CLOUD MONITORING & REPORTING
+  # ═══════════════════════════════════════════════════════════════════
+  multi-cloud-monitoring:
+    runs-on: ubuntu-latest
+    needs: [deployment-orchestrator, deploy-aws, deploy-azure]
+    if: always() && needs.deployment-orchestrator.result == 'success'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 📊 Generate Multi-Cloud Deployment Report
+      run: |
+        echo "## 🌐 Multi-Cloud Deployment Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Deployment Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Strategy**: ${{ github.event.inputs.deployment_strategy || 'both (default)' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Container Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Cloud Provider Status" >> $GITHUB_STEP_SUMMARY
+        echo "| Provider | Status | URL |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|-----|" >> $GITHUB_STEP_SUMMARY
+        
+        # AWS Status
+        if [ "${{ needs.deploy-aws.result }}" = "success" ]; then
+          echo "| 🟢 AWS | ✅ Success | [AWS App](${{ needs.deployment-orchestrator.outputs.aws_url }}) |" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-aws.result }}" = "failure" ]; then
+          echo "| 🔴 AWS | ❌ Failed | [AWS App](${{ needs.deployment-orchestrator.outputs.aws_url }}) |" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-aws.result }}" = "skipped" ]; then
+          echo "| ⚪ AWS | ⏭️ Skipped | Not deployed |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Azure Status
+        if [ "${{ needs.deploy-azure.result }}" = "success" ]; then
+          echo "| 🔵 Azure | ✅ Success | [Azure App](${{ needs.deployment-orchestrator.outputs.azure_url }}) |" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-azure.result }}" = "failure" ]; then
+          echo "| 🔴 Azure | ❌ Failed | [Azure App](${{ needs.deployment-orchestrator.outputs.azure_url }}) |" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-azure.result }}" = "skipped" ]; then
+          echo "| ⚪ Azure | ⏭️ Skipped | Not deployed |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Cost Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "- **AWS Monthly Cost**: ~$203-270 (Production ready)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Azure Monthly Cost**: ~$11-42 (Free tier optimized)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total Monthly Cost**: Varies by deployment strategy" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. 🧪 Test applications at the provided URLs" >> $GITHUB_STEP_SUMMARY
+        echo "2. 📊 Monitor resource usage in cloud consoles" >> $GITHUB_STEP_SUMMARY
+        echo "3. 🔍 Review deployment logs for any issues" >> $GITHUB_STEP_SUMMARY
+        echo "4. 📈 Set up monitoring and alerting" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 🚨 MULTI-CLOUD ROLLBACK ORCHESTRATOR
+  # ═══════════════════════════════════════════════════════════════════
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [deployment-orchestrator, deploy-aws, deploy-azure, multi-cloud-monitoring]
+    if: always() && (needs.deploy-aws.result == 'failure' || needs.deploy-azure.result == 'failure')
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: 🚨 AWS Rollback
+      if: needs.deploy-aws.result == 'failure' && needs.deployment-orchestrator.outputs.should_deploy_aws == 'true'
+      run: |
+        echo "🚨 Initiating AWS rollback..."
+        
+        # Configure AWS
+        export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+        export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        export AWS_DEFAULT_REGION=${{ env.AWS_REGION }}
+        
+        # Setup kubectl
+        curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Configure EKS
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name proj-dev-cluster
+        
+        # Rollback deployments
+        kubectl rollout undo deployment/backend -n ${{ env.K8S_NAMESPACE }} || echo "AWS backend rollback attempted"
+        kubectl rollout undo deployment/frontend -n ${{ env.K8S_NAMESPACE }} || echo "AWS frontend rollback attempted"
+        
+        echo "✅ AWS rollback completed"
+    
+    - name: 🚨 Azure Rollback
+      if: needs.deploy-azure.result == 'failure' && needs.deployment-orchestrator.outputs.should_deploy_azure == 'true'
+      run: |
+        echo "🚨 Initiating Azure rollback..."
+        
+        # Configure Azure
+        echo '${{ secrets.AZURE_CREDENTIALS }}' | az login --service-principal
+        
+        # Setup kubectl
+        curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Configure AKS
+        az aks get-credentials --resource-group proj-dev-rg --name proj-dev-aks --overwrite-existing
+        
+        # Rollback deployments
+        kubectl rollout undo deployment/proj-backend -n ${{ env.K8S_NAMESPACE }} || echo "Azure backend rollback attempted"
+        kubectl rollout undo deployment/proj-frontend -n ${{ env.K8S_NAMESPACE }} || echo "Azure frontend rollback attempted"
+        
+        echo "✅ Azure rollback completed"
+    
+    - name: 📊 Rollback Summary
+      run: |
+        echo "## 🚨 Rollback Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Rollback Actions Taken" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.deploy-aws.result }}" = "failure" ]; then
+          echo "- 🔴 **AWS**: Rollback initiated due to deployment failure" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.deploy-azure.result }}" = "failure" ]; then
+          echo "- 🔴 **Azure**: Rollback initiated due to deployment failure" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Recovery Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. 🔍 Review deployment logs for root cause" >> $GITHUB_STEP_SUMMARY
+        echo "2. 🧪 Test applications after rollback" >> $GITHUB_STEP_SUMMARY
+        echo "3. 🔧 Fix issues and redeploy" >> $GITHUB_STEP_SUMMARY

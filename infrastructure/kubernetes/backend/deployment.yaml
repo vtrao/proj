@@ -45,6 +45,10 @@ spec:
               key: database
         - name: ENVIRONMENT
           value: "development"
+        - name: CLOUD_PROVIDER
+          value: "aws"
+        - name: AWS_REGION
+          value: "us-east-1"
         livenessProbe:
           httpGet:
             path: /health

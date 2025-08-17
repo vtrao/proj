@@ -8,10 +8,25 @@ function App() {
   const [newIdea, setNewIdea] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cloudInfo, setCloudInfo] = useState({ cloud_provider: 'unknown', region: 'unknown' });
 
   useEffect(() => {
     fetchIdeas();
+    fetchCloudInfo();
   }, []);
+
+  const fetchCloudInfo = async () => {
+    try {
+      const response = await fetch('/api/cloud-info');
+      if (response.ok) {
+        const data = await response.json();
+        setCloudInfo(data);
+      }
+    } catch (err) {
+      console.log('Could not fetch cloud info:', err);
+      // Keep default values if API fails
+    }
+  };
 
   const fetchIdeas = async () => {
     try {
@@ -54,8 +69,47 @@ function App() {
     }
   };
 
+  const getCloudProviderIcon = (provider) => {
+    switch (provider.toLowerCase()) {
+      case 'aws':
+        return '☁️';
+      case 'azure':
+        return '🔷';
+      case 'gcp':
+        return '🟦';
+      default:
+        return '❓';
+    }
+  };
+
+  const getCloudProviderName = (provider) => {
+    switch (provider.toLowerCase()) {
+      case 'aws':
+        return 'AWS';
+      case 'azure':
+        return 'Azure';
+      case 'gcp':
+        return 'GCP';
+      default:
+        return 'Unknown';
+    }
+  };
+
   return (
     <div className="app-container">
+      {/* Cloud Provider Indicator */}
+      {cloudInfo.cloud_provider !== 'unknown' && (
+        <div className="cloud-provider-indicator">
+          <span className="cloud-icon">{getCloudProviderIcon(cloudInfo.cloud_provider)}</span>
+          <span className="cloud-text">
+            Powered by {getCloudProviderName(cloudInfo.cloud_provider)}
+          </span>
+          {cloudInfo.region !== 'unknown' && (
+            <span className="cloud-region">({cloudInfo.region})</span>
+          )}
+        </div>
+      )}
+      
       <div className="main-content">
         <div className="idea-board">
           <h1>💡 Ideas board v1</h1>
