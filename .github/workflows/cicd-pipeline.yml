@@ -23,9 +23,9 @@ on:
         type: boolean
 
 env:
-  # AWS ECR Container Registry (Using existing configured registry)
-  REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
-  IMAGE_NAME: proj/backend
+  # Docker Hub Registry (FREE tier with public repositories)
+  REGISTRY: docker.io
+  IMAGE_NAME: ${{ github.repository }}
   
   # AWS Region (Free Tier)
   AWS_REGION: us-east-1
@@ -223,32 +223,11 @@ jobs:
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
     
-    - name: 🔐 Set AWS Environment Variables
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
-      run: |
-        echo "Setting up AWS environment..."
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-        echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
-    
-    - name: 🧪 Test AWS Connection
-      run: |
-        echo "Testing AWS credentials..."
-        aws sts get-caller-identity
-        echo "✅ AWS credentials verified"
-    
-    - name: 🔐 Log in to Amazon ECR via CLI
-      run: |
-        echo "Logging into ECR..."
-        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.REGISTRY }}
-        echo "✅ ECR login successful"
-    
-    - name: 🏗️ Create ECR repository if needed
-      run: |
-        aws ecr describe-repositories --repository-names ${{ env.IMAGE_NAME }} --region ${{ env.AWS_REGION }} || echo "Repository exists or will be used"
+    - name: 🔐 Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     
     - name: 🏷️ Extract Metadata
       id: meta
