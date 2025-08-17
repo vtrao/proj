@@ -335,15 +335,15 @@ jobs:
     
     - name: 🚀 Deploy with Cheetah Platform
       run: |
-        cd infrastructure
+        echo "🚀 Using existing Cheetah-deployed infrastructure..."
+        echo "⚡ Skipping infrastructure provisioning - cluster already exists"
+        echo "🔄 Proceeding to application container updates..."
         
-        echo "🚀 Starting deployment with Cheetah platform..."
-        chmod +x deploy.sh
+        # Verify we can connect to the existing cluster
+        kubectl get nodes -o wide
+        kubectl get pods -n ${{ env.K8S_NAMESPACE }}
         
-        # Deploy using the Cheetah platform
-        ./deploy.sh ${{ github.event.inputs.environment || 'dev' }} aws
-        
-        echo "✅ Deployment completed successfully!"
+        echo "✅ Cluster connectivity verified - ready for app deployment!"
     
     - name: 🔄 Update Kubernetes Manifests
       run: |
