@@ -38,7 +38,43 @@ def get_db_connection():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    """
+    Health check endpoint for load balancers and monitoring.
+    Tests database connectivity and returns system status.
+    """
+    try:
+        # Test database connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "connected",
+            "version": "1.0.0"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy", 
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "disconnected",
+            "error": str(e),
+            "version": "1.0.0"
+        }
+
+@app.get("/")
+def root():
+    """Root endpoint with basic API information."""
+    return {
+        "message": "Proj API Server",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 @app.get("/api/ideas", response_model=List[Idea])
 def list_ideas():
@@ -61,4 +97,17 @@ def add_idea(idea: Idea):
     cur.close()
     conn.close()
     return Idea(id=row[0], content=idea.content, created_at=row[1])
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    # Get configuration from environment
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    
+    print(f"🚀 Starting Proj API server on {host}:{port}")
+    print(f"📊 Health check: http://{host}:{port}/health")
+    print(f"📖 API docs: http://{host}:{port}/docs")
+    
+    uvicorn.run(app, host=host, port=port)
 

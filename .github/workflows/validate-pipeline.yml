@@ -1,0 +1,238 @@
+name: 🧪 Pipeline Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of validation test to run'
+        required: true
+        default: 'basic'
+        type: choice
+        options:
+          - basic
+          - full
+          - security-only
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/**'
+      - 'docker-compose.test.yml'
+      - 'Dockerfile'
+
+env:
+  TEST_DATABASE_URL: "postgresql://testuser:testpass@localhost:5432/testdb"
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════
+  # 🔧 PIPELINE VALIDATION
+  # ═══════════════════════════════════════════════════════════════════
+  validate-workflows:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: 🔍 Install actionlint
+      run: |
+        bash <(curl https://raw.githubusercontent.com/rhymond/actionlint/main/scripts/download-actionlint.bash)
+        sudo mv actionlint /usr/local/bin/
+    
+    - name: ✅ Validate GitHub Actions Workflows
+      run: |
+        echo "🔍 Validating all workflow files..."
+        actionlint .github/workflows/*.yml
+        
+        echo "✅ All workflow files are valid!"
+    
+    - name: 📋 Workflow Summary
+      run: |
+        echo "## 🔍 Workflow Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Workflows Found:" >> $GITHUB_STEP_SUMMARY
+        
+        for workflow in .github/workflows/*.yml; do
+          name=$(grep "^name:" "$workflow" | head -1 | cut -d'"' -f2 || echo "Unknown")
+          echo "- **$(basename "$workflow")**: $name" >> $GITHUB_STEP_SUMMARY
+        done
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **All workflows validated successfully!**" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 🐳 DOCKER VALIDATION
+  # ═══════════════════════════════════════════════════════════════════
+  validate-containers:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type != 'security-only'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🧪 Test Docker Build
+      run: |
+        echo "🏗️ Testing multi-stage Docker build..."
+        docker build -t proj:validation-test .
+        
+        echo "🔍 Inspecting built image..."
+        docker images proj:validation-test
+        docker inspect proj:validation-test
+    
+    - name: 🧪 Test Docker Compose
+      run: |
+        echo "🐳 Testing Docker Compose setup..."
+        
+        # Test production compose
+        docker-compose config
+        
+        # Test integration test compose
+        if [ -f docker-compose.test.yml ]; then
+          docker-compose -f docker-compose.test.yml config
+          echo "✅ Test compose configuration valid"
+        fi
+    
+    - name: 🔍 Container Security Check
+      run: |
+        echo "🛡️ Basic container security validation..."
+        
+        # Check if non-root user is used
+        if docker run --rm proj:validation-test whoami | grep -q "appuser"; then
+          echo "✅ Container runs as non-root user"
+        else
+          echo "⚠️ Container may be running as root"
+        fi
+        
+        # Check for health check
+        if docker inspect proj:validation-test | grep -q "HEALTHCHECK"; then
+          echo "✅ Health check configured"
+        else
+          echo "⚠️ No health check found"
+        fi
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 🔐 SECURITY VALIDATION
+  # ═══════════════════════════════════════════════════════════════════
+  validate-security:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'security-only' || github.event.inputs.test_type == 'full'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 🔍 Check for Secrets
+      run: |
+        echo "🔍 Scanning for potential secrets..."
+        
+        # Basic secret patterns
+        if grep -r -i "password.*=" --include="*.py" --include="*.js" --exclude-dir=node_modules . | grep -v "PASSWORD_" | grep -v test; then
+          echo "⚠️ Potential hardcoded passwords found"
+          exit 1
+        else
+          echo "✅ No hardcoded passwords detected"
+        fi
+        
+        # API key patterns
+        if grep -r -E "(api_key|apikey).*=" --include="*.py" --include="*.js" --exclude-dir=node_modules . | grep -v "API_KEY"; then
+          echo "⚠️ Potential hardcoded API keys found"
+          exit 1
+        else
+          echo "✅ No hardcoded API keys detected"
+        fi
+    
+    - name: 🔍 Validate .gitignore
+      run: |
+        echo "🔍 Checking .gitignore for security patterns..."
+        
+        if grep -q "\.env" .gitignore; then
+          echo "✅ .env files are ignored"
+        else
+          echo "⚠️ .env files not in .gitignore"
+          exit 1
+        fi
+        
+        if grep -q "node_modules" .gitignore; then
+          echo "✅ node_modules ignored"
+        else
+          echo "⚠️ node_modules should be in .gitignore"
+        fi
+    
+    - name: 🔍 Check File Permissions
+      run: |
+        echo "🔍 Checking for files with sensitive permissions..."
+        
+        # Check for executable files that shouldn't be
+        find . -name "*.py" -executable -type f | head -5 | while read file; do
+          echo "⚠️ Python file with execute permission: $file"
+        done
+        
+        # Check for world-writable files
+        find . -type f -perm -002 | head -5 | while read file; do
+          echo "⚠️ World-writable file: $file"
+        done
+        
+        echo "✅ File permission check completed"
+    
+    - name: 📋 Security Summary
+      run: |
+        echo "## 🔐 Security Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Checks Performed:" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Secret pattern scanning" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ .gitignore validation" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ File permission checks" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Container security basics" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **All security validations passed!**" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 📊 PIPELINE HEALTH CHECK
+  # ═══════════════════════════════════════════════════════════════════
+  health-check:
+    runs-on: ubuntu-latest
+    needs: [validate-workflows, validate-containers, validate-security]
+    if: always()
+    
+    steps:
+    - name: 📊 Pipeline Health Summary
+      run: |
+        echo "## 🏥 Pipeline Health Check Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Component Status:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Workflows**: ${{ needs.validate-workflows.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Containers**: ${{ needs.validate-containers.result }}" >> $GITHUB_STEP_SUMMARY  
+        echo "- **Security**: ${{ needs.validate-security.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.validate-workflows.result }}" == "success" ] && 
+           [ "${{ needs.validate-containers.result }}" == "success" ] && 
+           [ "${{ needs.validate-security.result }}" == "success" ]; then
+          echo "🎉 **Overall Status: HEALTHY** 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Ready for:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Automated deployments" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security scanning" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Container orchestration" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Free tier operations" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Overall Status: NEEDS ATTENTION**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please review failed components above." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "*Pipeline validation completed at $(date)*" >> $GITHUB_STEP_SUMMARY
