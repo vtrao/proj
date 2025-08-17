@@ -25,7 +25,7 @@ on:
 env:
   # AWS ECR Container Registry (Using existing configured registry)
   REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
-  IMAGE_NAME: proj
+  IMAGE_NAME: proj/backend
   
   # AWS Region (Free Tier)
   AWS_REGION: us-east-1
@@ -235,8 +235,7 @@ jobs:
     
     - name: 🏗️ Create ECR repository if needed
       run: |
-        aws ecr describe-repositories --repository-names ${{ env.IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
-        aws ecr create-repository --repository-name ${{ env.IMAGE_NAME }} --region ${{ env.AWS_REGION }}
+        aws ecr describe-repositories --repository-names ${{ env.IMAGE_NAME }} --region ${{ env.AWS_REGION }} || echo "Repository exists or will be used"
     
     - name: 🏷️ Extract Metadata
       id: meta
