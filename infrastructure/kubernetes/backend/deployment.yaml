@@ -18,6 +18,8 @@ spec:
         app: backend
         tier: backend
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: backend
         image: 450290746652.dkr.ecr.us-east-1.amazonaws.com/proj/backend:latest

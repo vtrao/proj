@@ -18,6 +18,8 @@ spec:
         app: frontend
         tier: frontend
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: frontend
         image: 450290746652.dkr.ecr.us-east-1.amazonaws.com/proj/frontend:latest
