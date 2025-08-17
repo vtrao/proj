@@ -176,9 +176,9 @@ jobs:
       run: |
         echo "🧪 Running integration tests..."
         
-        # Start test services with docker-compose
+        # Start test services with docker compose (new syntax)
         if [ -f docker-compose.test.yml ]; then
-          docker-compose -f docker-compose.test.yml up --build -d
+          docker compose -f docker-compose.test.yml up --build -d
           sleep 30
           
           # Run integration tests
@@ -189,17 +189,17 @@ jobs:
           curl -f http://localhost:3000 || echo "Frontend check failed"
           
           # Cleanup
-          docker-compose -f docker-compose.test.yml down
+          docker compose -f docker-compose.test.yml down
         else
           echo "No integration test configuration found, using docker-compose.yml"
-          docker-compose up --build -d
+          docker compose up --build -d
           sleep 30
           
           # Basic health checks
-          docker-compose logs backend | tail -10
-          docker-compose logs frontend | tail -10
+          docker compose logs backend | tail -10
+          docker compose logs frontend | tail -10
           
-          docker-compose down
+          docker compose down
         fi
     
     - name: 📄 Upload Test Reports
