@@ -321,7 +321,7 @@ jobs:
         fi
     
     - name: 🔧 Install kubectl
-      uses: azure/setup-kubectl@v3
+      uses: azure/setup-kubectl@v4
       with:
         version: 'v1.28.0'
     
@@ -434,7 +434,7 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
     
     - name: 🔧 Install kubectl
-      uses: azure/setup-kubectl@v3
+      uses: azure/setup-kubectl@v4
       with:
         version: 'v1.28.0'
     
@@ -509,7 +509,7 @@ jobs:
         fi
     
     - name: 🔧 Install kubectl
-      uses: azure/setup-kubectl@v3
+      uses: azure/setup-kubectl@v4
       with:
         version: 'v1.28.0'
     
