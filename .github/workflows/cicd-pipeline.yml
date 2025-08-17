@@ -150,19 +150,17 @@ jobs:
         cache-dependency-path: frontend/package-lock.json
     
     - name: 🧪 Backend Tests
-      if: matrix.test-type == 'backend'
-      run: |
-        cd backend
-        pip install -r requirements.txt
-        pip install pytest pytest-cov pytest-asyncio
-        
-        echo "🧪 Running backend tests..."
-        pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing || echo "Backend tests completed"
-        
-        echo "📊 Test coverage summary:"
-        coverage report --show-missing
-    
-    - name: 🧪 Frontend Tests
+        if: matrix.test-type == 'backend'
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+          
+          echo "🧪 Running backend tests..."
+          PYTHONPATH=. pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing || echo "Backend tests completed"
+          
+          echo "📊 Test coverage summary:"
+          coverage report --show-missing    - name: 🧪 Frontend Tests
       if: matrix.test-type == 'frontend'
       run: |
         cd frontend
