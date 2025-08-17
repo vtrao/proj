@@ -235,41 +235,36 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: 🏷️ Extract Metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-    
     - name: 🔧 Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
-    - name: 🏗️ Build and Push Images
-      id: build
+    - name: 🏗️ Build and Push Backend Image
+      id: build-backend
       uses: docker/build-push-action@v5
       with:
-        context: .
+        context: ./backend
         platforms: linux/amd64
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }},${{ env.REGISTRY }}/${{ github.repository }}-backend:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        build-args: |
-          BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
-          REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+    
+    - name: 🏗️ Build and Push Frontend Image
+      id: build-frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        platforms: linux/amd64
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ github.repository }}-frontend:${{ github.sha }},${{ env.REGISTRY }}/${{ github.repository }}-frontend:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
     
     - name: 🔍 Container Security Scan
       uses: anchore/scan-action@v3
       id: scan
       with:
-        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        image: ${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }}
         fail-build: false
         severity-cutoff: high
     
@@ -367,10 +362,10 @@ jobs:
         echo "🔄 Updating container images in Kubernetes manifests..."
         
         # Update backend deployment
-        kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
+        kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ github.repository }}-backend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
         
         # Update frontend deployment
-        kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
+        kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ github.repository }}-frontend:${{ github.sha }} -n ${{ env.K8S_NAMESPACE }}
         
         echo "🔄 Rolling out updates..."
         kubectl rollout status deployment/backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
