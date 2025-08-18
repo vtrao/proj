@@ -1,46 +1,49 @@
 # Deprecated Scripts
 
-These scripts have been deprecated in favor of the proper Cheetah platform integration.
+This directory contains deployment and cleanup scripts that have been replaced by the Cheetah platform integration.
 
-## Migration Guide
+## Scripts in this directory:
 
-### Old Way (Deprecated)
+### Deployment Scripts
+- **`deploy-aws-cheetah.sh`** - Legacy AWS deployment with early Cheetah integration
+- **`deploy-to-aws.sh`** - Direct AWS deployment script (pre-Cheetah)
+- **`cleanup-aws.sh`** - AWS resource cleanup script
+
+### Legacy Scripts (from root/scripts/)
+- **`scripts/setup-secrets.sh`** - Cloud secrets setup (now integrated in Cheetah)
+- **`scripts/secure-deploy.sh`** - Secure deployment (now default in Cheetah)
+
+## Migration Status
+
+✅ **REPLACED BY**: `../infrastructure/deploy.sh` using Cheetah platform
+
+**Benefits of new approach:**
+- Cloud-agnostic deployment (AWS + Azure)
+- Automated security by default
+- Cost optimization built-in
+- Enterprise CI/CD integration
+- Zero-downtime deployments
+
+## Historical Context
+
+These scripts represent the project evolution:
+1. **Phase 1**: Direct cloud deployment scripts
+2. **Phase 2**: Early Cheetah platform adoption  
+3. **Phase 3**: Multi-cloud capability development
+4. **Phase 4**: Full Cheetah platform integration
+
+## Current Usage:
+Instead of these scripts, use:
 ```bash
-# ❌ Don't use these anymore
-./deploy-aws-cheetah.sh
-./cleanup-aws.sh
-terraform apply -f aws-deployment.tf
+# Multi-cloud deployment via Cheetah
+./infrastructure/deploy.sh dev aws
+./infrastructure/deploy.sh dev azure
+./infrastructure/deploy.sh dev both
+
+# Automated CI/CD pipeline
+git push origin main  # Triggers multi-cloud deployment
 ```
 
-### New Way (Recommended)
-```bash
-# ✅ Use Cheetah platform properly
-cd infrastructure
-./deploy.sh dev aws      # Deploy infrastructure  
-./cleanup.sh dev aws     # Cleanup infrastructure
-./test-integration.sh    # Run tests
-```
-
-## What Changed
-
-1. **Unified Configuration**: All configuration is now in `infrastructure/cheetah/terraform/terraform.tfvars`
-2. **Proper Cheetah Integration**: Using Cheetah's built-in deployment scripts instead of custom wrappers
-3. **Cleaner Project Structure**: No more scattered scripts in the root directory
-4. **Better Documentation**: Comprehensive README in `infrastructure/` directory
-5. **Integration Tests**: Proper test suite for infrastructure validation
-
-## Files in This Directory
-
-- `aws-deployment.tf` - Old Terraform configuration (replaced by terraform.tfvars)
-- `deploy-aws-cheetah.sh` - Old deployment script (replaced by infrastructure/deploy.sh)
-- `cleanup-aws.sh` - Old cleanup script (replaced by infrastructure/cleanup.sh)
-- `install-prerequisites.sh` - Old prerequisite installer (replaced by Cheetah's built-in checks)
-- `AWS-DEPLOYMENT.md` - Old deployment documentation (replaced by infrastructure/README.md)
-
-## Migration Complete
-
-All functionality has been migrated to the proper Cheetah platform integration. These files are kept for reference only and will be removed in a future version.
-
----
-
-**Use `cd infrastructure && ./deploy.sh dev aws` instead! 🚀**
+## Status:
+🚫 **DEPRECATED** - Replaced by Cheetah platform integration
+📁 **ARCHIVED** - Preserved for historical reference and debugging
