@@ -68,7 +68,7 @@ jobs:
         fetch-depth: 0
     
     - name: 🐍 Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -155,7 +155,7 @@ jobs:
     
     - name: 🐍 Setup Python (for backend tests)
       if: matrix.test-type == 'backend' || matrix.test-type == 'integration'
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
         cache: 'pip'
